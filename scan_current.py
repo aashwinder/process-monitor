@@ -2,62 +2,67 @@ import psutil
 import csv
 import os
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-baseline_file = os.path.join(BASE_DIR, "baseline_processes.csv")
+def scan_current():
 
-# Baseline process isimlerini getir
-baseline_processes = set()
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    baseline_file = os.path.join(BASE_DIR, "baseline_processes.csv")
 
-reported = set()
+    # Baseline process isimlerini getir
+    baseline_processes = set()
 
-# Baseline'ı oku
-with open(baseline_file, newline='', encoding='utf-8') as file:
-    reader = csv.reader(file)
-    next(reader)  # Başlık satırını atla
-    for row in reader:
-        baseline_processes.add(row[0])
+    reported = set()
 
-# Güvenli kabul edilen dizinler
-SAFE_PATHS = ["C:\\Windows", "C:\\Program Files", "C:\\Program Files (x86)", "C:\\ProgramData\\Microsoft"]
-WINDOWS_CORE_PROCESSES = [
-    "smss.exe", "csrss.exe", "wininit.exe", "services.exe", 
-    "lsass.exe", "svchost.exe", "explorer.exe", "winlogon.exe", 
-    "dwm.exe", "taskhostw.exe", "sihost.exe"
-]
+    # Baseline'ı oku
+    with open(baseline_file, newline='', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        next(reader)  # Başlık satırını atla
+        for row in reader:
+            baseline_processes.add(row[0])
 
-print("\n🚨 Baseline'da olmayan veya şüpheli PATH'e sahip process'ler:")
+    # Güvenli kabul edilen dizinler
+    SAFE_PATHS = ["C:\\Windows", "C:\\Program Files", "C:\\Program Files (x86)", "C:\\ProgramData\\Microsoft"]
+    WINDOWS_CORE_PROCESSES = [
+        "smss.exe", "csrss.exe", "wininit.exe", "services.exe", 
+        "lsass.exe", "svchost.exe", "explorer.exe", "winlogon.exe", 
+        "dwm.exe", "taskhostw.exe", "sihost.exe"
+    ]
 
-alert_found = False
+    print("\n!!! Baseline'da olmayan veya şüpheli PATH'e sahip process'ler:")
 
-for proc in psutil.process_iter(['name', 'exe']):
-    try:
-        name = proc.info['name']
-        exe_path = proc.info['exe'] or ""
-        
-        if ":" not in exe_path:
-            continue  # Geçersiz exe yolu
+    alert_found = False
 
-        if name in WINDOWS_CORE_PROCESSES:
-            continue  # Windows çekirdek process'lerini yoksay
+    for proc in psutil.process_iter(['name', 'exe']):
+        try:
+            name = proc.info['name']
+            exe_path = proc.info['exe'] or ""
+            
+            if ":" not in exe_path:
+                continue  # Geçersiz exe yolu
 
-        # Aynı process’i 10 kere yazmasını engelleyelim
-        key = (name, exe_path)
-        if key in reported:
-            continue  # Zaten raporlandı
-        reported.add(key)
+            if name in WINDOWS_CORE_PROCESSES:
+                continue  # Windows çekirdek process'lerini yoksay
 
-        # Baseline'da yoksa
-        if name not in baseline_processes:
-            print(f"\n📌 Yeni process: {name} | Path: {exe_path}")
-            alert_found = True
-            continue
-        # Baseline'da var ama PATH şüpheli ise
-        if not any(exe_path.startswith(safe) for safe in SAFE_PATHS):
-            print(f"\n⚠️ Şüpheli PATH: {name} | Path: {exe_path}")
-            alert_found = True
-    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-        pass
+            # Aynı process’i 10 kere yazmasını engelleyelim
+            key = (name, exe_path)
+            if key in reported:
+                continue  # Zaten raporlandı
+            reported.add(key)
 
-if not alert_found:
-    print("✅ Tespit edilen şüpheli process yok.")
-        
+            # Baseline'da yoksa
+            if name not in baseline_processes:
+                print(f"\n! Yeni process: {name} | Path: {exe_path}")
+                alert_found = True
+                continue
+            # Baseline'da var ama PATH şüpheli ise
+            if not any(exe_path.startswith(safe) for safe in SAFE_PATHS):
+                print(f"\n? Şüpheli PATH: {name} | Path: {exe_path}")
+                alert_found = True
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+
+    if not alert_found:
+        print("✓ Tespit edilen şüpheli process yok.")
+
+# 👉 Dosya direkt çalıştırılırsa
+if __name__ == "__main__":
+    scan_current()
